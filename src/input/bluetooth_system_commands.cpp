@@ -1,4 +1,5 @@
 /* ==================== bluetooth_system_commands.cpp ==================== */
+#include "config/Config.h"
 #include "input/bluetooth_system_commands.h"
 
 /* =============== INCLUDES =============== */
@@ -38,13 +39,18 @@ bool handle_char(char c, InputWatchdog& watchdog) {
 
         /* ============ DRIVE MODES ============ */
         case '1':
-            ModeManager::set(DriveMode::AUTONOMOUS);
-            watchdog.feed(); // Mode switch feeds watchdog
-            return true;
+            #if ENABLE_AUTONOMOUS_MODE
+                ModeManager::set(DriveMode::AUTONOMOUS);
+                watchdog.feed();
+                return true;
+            #else
+                Comms::system.println("ERROR: Autonomous mode not compiled");
+                return false;
+            #endif
 
         case '0':
             ModeManager::set(DriveMode::MANUAL);
-            watchdog.feed(); // Mode switch feeds watchdog
+            watchdog.feed();
             return true;
 
         default:

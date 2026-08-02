@@ -1,9 +1,10 @@
 /* ==================== motor_control.cpp ==================== */
+#include "config/Config.h"
 #include "control/motor_control.h"
 
 /* =============== INCLUDES =============== */
+
 /* ============ PROJECT ============ */
-#include "config/Config.h"
 #include "control/motor_ramp.h"
 #include "safety/motion_policy.h"
 #include "safety/safety_manager.h"
@@ -20,6 +21,9 @@ static Adafruit_DCMotor* motor_fl = nullptr;
 static Adafruit_DCMotor* motor_fr = nullptr;
 static Adafruit_DCMotor* motor_rl = nullptr;
 static Adafruit_DCMotor* motor_rr = nullptr;
+
+/* ========= STOP STATE ========= */
+static bool motors_stopped = true;
 
 /* =============== INTERNAL HELPERS =============== */
 static inline uint16_t float_to_pwm(float v) {
@@ -57,18 +61,25 @@ void init(MotorHardware& hw) {
     Comms::system.println("MotorControl INIT");
 }
 
-/* 🚨 REQUIRED: LINKER + SAFETY */
 void hard_stop() {
     MotorRamp::reset();
-
     drive_one_motor(motor_fl, 0.0f);
     drive_one_motor(motor_fr, 0.0f);
     drive_one_motor(motor_rl, 0.0f);
     drive_one_motor(motor_rr, 0.0f);
+
+    motors_stopped = true;
 }
 
 /* ===== INPUT ===== */
 void apply_command(const MotionCommand& cmd) {
+    // Fast path on zero command
+    if (cmd.forward == 0.0f && cmd.strafe == 0.0f && cmd.rotate == 0.0f) {
+        hard_stop();
+        return;
+    }    
+
+    motors_stopped = false;
     
     /* ===== SAFETY POLICY ===== */
     // All safety checks, obstacle avoidance, and authority scaling in one place
@@ -93,6 +104,18 @@ void apply_command(const MotionCommand& cmd) {
 
 /* ===== UPDATE LOOP ===== */
 void update() {
+    if (motors_stopped) return;
+
+    MotorSet cur = MotorRamp::current();
+    MotorSet tgt = MotorRamp::target();
+
+    if (tgt.fl == 0.0f && fabs(cur.fl) < 0.05f &&
+        tgt.fr == 0.0f && fabs(cur.fr) < 0.05f &&
+        tgt.rl == 0.0f && fabs(cur.rl) < 0.05f &&
+        tgt.rr == 0.0f && fabs(cur.rr) < 0.05f) {
+        hard_stop();
+        return;
+    }
 
     // HARD STOP on emergency or input loss
     SafetyState safety = SafetyManager::get_state();
@@ -100,8 +123,6 @@ void update() {
         hard_stop();
         return;
     }
-
-    MotorSet cur = MotorRamp::current();
 
     drive_one_motor(motor_fl, cur.fl);
     drive_one_motor(motor_fr, cur.fr);

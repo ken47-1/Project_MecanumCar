@@ -1,9 +1,8 @@
 /* ==================== motor_ramp.cpp ==================== */
+#include "config/Config.h"
 #include "control/motor_ramp.h"
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
-#include "config/Config.h"
 
 /* ============ CORE ============ */
 #include <Arduino.h>
@@ -82,6 +81,9 @@ void update() {
 
 MotorSet current() {
     return cur;
+}
+MotorSet target() {
+    return tgt;
 }
 
 } // namespace MotorRamp
